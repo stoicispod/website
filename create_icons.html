@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas16" width="16" height="16"></canvas>
+    <canvas id="canvas48" width="48" height="48"></canvas>
+    <canvas id="canvas128" width="128" height="128"></canvas>
+    
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Cookbook/pan icon
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍳', size/2, size/2);
+        }
+        
+        createIcon('canvas16', 16);
+        createIcon('canvas48', 48);
+        createIcon('canvas128', 128);
+        
+        // Download functions
+        function downloadCanvas(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Add download buttons
+        document.body.innerHTML += `
+            <br>
+            <button onclick="downloadCanvas('canvas16', 'icon16.png')">Download 16x16</button>
+            <button onclick="downloadCanvas('canvas48', 'icon48.png')">Download 48x48</button>
+            <button onclick="downloadCanvas('canvas128', 'icon128.png')">Download 128x128</button>
+        `;
+    </script>
+</body>
+</html>
