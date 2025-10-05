@@ -17,6 +17,90 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // Format instructions for better readability
+  function formatInstructions(instructions) {
+    if (!instructions) return 'No instructions found';
+    
+    // If it's already an array, join it
+    if (Array.isArray(instructions)) {
+      return instructions.map((step, index) => `${index + 1}. ${step}`).join('\n\n');
+    }
+    
+    // If it's a string, try to split it into steps
+    let formatted = instructions.toString();
+    
+    // Try to split by common patterns
+    const patterns = [
+      /\d+\.\s+/g,  // "1. " pattern
+      /\n\s*\d+\.\s+/g,  // New line followed by number
+      /\n\s*-\s+/g,  // Bullet points
+      /\n\s*\*\s+/g  // Asterisk bullets
+    ];
+    
+    for (let pattern of patterns) {
+      if (pattern.test(formatted)) {
+        const steps = formatted.split(pattern).filter(step => step.trim());
+        return steps.map((step, index) => `${index + 1}. ${step.trim()}`).join('\n\n');
+      }
+    }
+    
+    // If no clear pattern, try to split by sentences and number them
+    const sentences = formatted.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    if (sentences.length > 1) {
+      return sentences.map((sentence, index) => `${index + 1}. ${sentence.trim()}.`).join('\n\n');
+    }
+    
+    // Fallback: return as-is but with better formatting
+    return formatted.replace(/\n/g, '\n\n');
+  }
+
+  // Event delegation for recipe actions
+  function setupEventListeners() {
+    recipesList.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const action = e.target.getAttribute('data-action');
+      const index = parseInt(e.target.getAttribute('data-index'));
+      
+      console.log('Button clicked:', action, 'Index:', index); // Debug log
+      
+      if (action === 'view') {
+        // Get recipe data and pass it to the viewer
+        chrome.storage.local.get(['recipes'], function(result) {
+          const recipes = result.recipes || [];
+          const recipe = recipes[index];
+          
+          if (recipe) {
+            // Encode recipe data and pass it to the viewer
+            const recipeData = encodeURIComponent(JSON.stringify(recipe));
+            const viewerUrl = chrome.runtime.getURL('recipe-viewer.html') + `?data=${recipeData}`;
+            chrome.tabs.create({ url: viewerUrl });
+          } else {
+            showStatus('Recipe not found', 'error');
+          }
+        });
+      } else if (action === 'delete') {
+        if (confirm('Are you sure you want to delete this recipe?')) {
+          chrome.storage.local.get(['recipes'], function(result) {
+            const recipes = result.recipes || [];
+            recipes.splice(index, 1);
+            
+            chrome.storage.local.set({ recipes: recipes }, function() {
+              loadRecipes();
+              showStatus('Recipe deleted successfully', 'success');
+            });
+          });
+        }
+      } else if (action === 'close') {
+        const details = document.getElementById(`details-${index}`);
+        if (details) {
+          details.style.display = 'none';
+        }
+      }
+    });
+  }
+
   // Load and display saved recipes
   function loadRecipes() {
     chrome.storage.local.get(['recipes'], function(result) {
@@ -36,10 +120,10 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="recipe-title">${recipe.name}</div>
           <div class="recipe-source">From: ${recipe.url}</div>
           <div class="recipe-actions">
-            <button class="btn-small btn-view" onclick="viewRecipe(${index})">View</button>
-            <button class="btn-small btn-delete" onclick="deleteRecipe(${index})">Delete</button>
+            <button class="btn-small btn-view" data-action="view" data-index="${index}">View Recipe</button>
+            <button class="btn-small btn-delete" data-action="delete" data-index="${index}">Delete</button>
           </div>
-          <div class="recipe-details" id="details-${index}">
+          <div class="recipe-details" id="details-${index}" style="display: none;">
             <h3>${recipe.name}</h3>
             <div class="recipe-ingredients">
               <h4>Ingredients:</h4>
@@ -49,48 +133,17 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="recipe-instructions">
               <h4>Instructions:</h4>
-              <p>${recipe.recipeInstructions || 'No instructions found'}</p>
+              <div class="instructions-text">${formatInstructions(recipe.recipeInstructions).replace(/\n/g, '<br>')}</div>
             </div>
-            <button class="close-details" onclick="closeDetails(${index})">Close</button>
+            <button class="close-details" data-action="close" data-index="${index}">Close</button>
           </div>
         </div>
       `).join('');
+      
+      // Re-setup event listeners after HTML is generated
+      setupEventListeners();
     });
   }
-
-  // View recipe details
-  window.viewRecipe = function(index) {
-    const details = document.getElementById(`details-${index}`);
-    const isVisible = details.style.display === 'block';
-    
-    // Close all other details
-    document.querySelectorAll('.recipe-details').forEach(detail => {
-      detail.style.display = 'none';
-    });
-    
-    // Toggle current details
-    details.style.display = isVisible ? 'none' : 'block';
-  };
-
-  // Close recipe details
-  window.closeDetails = function(index) {
-    document.getElementById(`details-${index}`).style.display = 'none';
-  };
-
-  // Delete recipe
-  window.deleteRecipe = function(index) {
-    if (confirm('Are you sure you want to delete this recipe?')) {
-      chrome.storage.local.get(['recipes'], function(result) {
-        const recipes = result.recipes || [];
-        recipes.splice(index, 1);
-        
-        chrome.storage.local.set({ recipes: recipes }, function() {
-          loadRecipes();
-          showStatus('Recipe deleted successfully', 'success');
-        });
-      });
-    }
-  };
 
   // Save current recipe
   saveRecipeBtn.addEventListener('click', function() {
